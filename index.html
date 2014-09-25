@@ -1,0 +1,267 @@
+<html>
+<head>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.min.js"></script>
+<script src="http://threejs.org/examples/js/controls/FlyControls.js"></script>
+<script src="http://threejs.org/examples/js/ParametricGeometries.js"></script>
+<style>canvas { width: 100%; height: 100% }</style>
+<script>
+$(document).ready(function(){
+// set the scene size
+var WIDTH = 1280,
+    HEIGHT = 1024;
+
+// set some camera attributes
+var VIEW_ANGLE = 45,
+  ASPECT = WIDTH / HEIGHT,
+  NEAR = 0.1,
+  FAR = 100000;
+
+// get the DOM element to attach to
+// - assume we've got jQuery to hand
+var $container = $('#container');
+
+// create a WebGL renderer, camera
+// and a scene
+var renderer = new THREE.WebGLRenderer();
+var camera =
+  new THREE.PerspectiveCamera(
+    VIEW_ANGLE,
+    ASPECT,
+    NEAR,
+    FAR);
+
+var scene = new THREE.Scene();
+
+// add the camera to the scene
+scene.add(camera);
+
+var controls = new THREE.FlyControls(camera);
+
+controls.movementSpeed = 1000;
+controls.domElement = $container[0];
+controls.rollSpeed = Math.PI/16;
+controls.autoForward = false;
+controls.dragToLook = true;
+// the camera starts at 0,0,0
+// so pull it back
+camera.position.z = 300;
+var clock = new THREE.Clock();
+
+// start the renderer
+renderer.setSize(WIDTH, HEIGHT);
+
+// attach the render-supplied DOM element
+$container.append(renderer.domElement);
+
+// set up the sphere vars
+// create a new mesh with
+// sphere geometry - we will cover
+// the sphereMaterial next!
+
+// add the sphere to the scene
+ var height = 100;
+ var width = 2;
+ var spacePerTurn = height*1.2; 
+  
+var barGeom = new THREE.CylinderGeometry( width, width, height, 40, 5 );
+var xBarGeom = new THREE.CylinderGeometry( width, width, height*0.3, 40, 5 );
+var oGeom = new THREE.TorusGeometry(height*0.1, width, 8, 10);
+
+
+var xOffsets = [
+  [ [-5,5], [0,4],[5,3], ],
+  [ [-5,2], [0,0],[5,1], ],
+  [ [-5,-1], [0,-2],[5,-3], ],
+];
+
+var oOffsets = [
+  [ [-1,3], [0,4],[1,5], ],
+  [ [-1,1], [0,0],[1,2], ],
+  [ [-1,-3], [0,-2],[1,-1], ],
+]
+function getOffsetWeight(x,y, piece){
+  if (piece == 1)
+    return xOffsets[y][x];
+  else if(piece == -1)
+    return oOffsets[y][x];
+  else
+    return 0;
+}
+
+var configsPerTurn = [1, 9, 72, 252, 1260, 1680, 1260, 630, 630 ];
+
+var offsetRowsMap = {};
+var layersMap = {};
+function makeOffsetForConfig(config) {
+  var numPieces  = 0;
+  var dy = 0;
+  for (var iy = 0; iy < 3; ++ iy) {
+    for (var ix = 0; ix < 3; ++ ix) {
+        var piece = config[iy][ix];
+        if (piece != 0) {
+            ++ numPieces;
+        }
+    }
+  }
+
+  var dz  = -spacePerTurn*numPieces;
+  // first, get the rows map for this z axis
+  var thisLayer = layersMap[numPieces];
+  if (typeof thisLayer === 'undefined') {
+    thisLayer = { row : 0, column : 0};
+    layersMap[numPieces] = thisLayer;
+  }
+   if(++thisLayer.column > Math.sqrt(configsPerTurn[numPieces])){
+      ++thisLayer.row;
+       thisLayer.column = 0;
+   }
+   dy = thisLayer.row*spacePerTurn;
+   var dx = thisLayer.column*spacePerTurn;
+
+  return [ dx, dy, dz];
+}
+
+var whiteMaterial = new THREE.MeshLambertMaterial({color:0xffffff});
+var redMaterial = new THREE.MeshLambertMaterial({color:0xcc0000});
+var greenMaterial = new THREE.MeshLambertMaterial({color:0x00cc00});
+function makeGrid(configuration, turnNumber){
+  var offset = height/6; // two offset should be one third of the space here
+  //create sphere
+  var isXTurn = turnNumber % 2 == 0;
+  var gridOffset = makeOffsetForConfig(configuration);
+  var x = gridOffset[0]; 
+  var y = gridOffset[1];
+  var z = gridOffset[2];
+
+  // put the bars in here
+
+  var leftBar = new THREE.Mesh(barGeom, whiteMaterial);
+      leftBar.position.set( x - offset, y, z );
+  scene.add( leftBar);
+
+  var rightBar = new THREE.Mesh(barGeom, whiteMaterial);
+  rightBar.position.set(x + offset, y, z);
+
+  scene.add(rightBar)
+
+var topBar = new THREE.Mesh(barGeom, whiteMaterial);
+    topBar.rotation.set(0,0,Math.PI/2);
+    topBar.position.set(x,y+offset,z);
+    scene.add(topBar);
+
+var bottomBar = new THREE.Mesh(barGeom, whiteMaterial);
+  bottomBar.rotation.set(0,0,-Math.PI/2);
+  bottomBar.position.set(x,y-offset,z);
+scene.add(bottomBar);
+  // now add the elements
+  for (var iy = 0; iy < 3; ++ iy) {
+    for (var ix = 0; ix < 3; ++ ix){
+      var val = configuration[iy][ix];
+
+      var offsetX = (ix - 1)*height*0.333;
+      var offsetY = (iy - 1)*height*0.333;
+      if (val == 1) {
+        // make an x here
+        var xCrossLeft = new THREE.Mesh(xBarGeom, redMaterial);
+        xCrossLeft.rotation.set(0,0,Math.PI/4)
+        var xCrossRight = new THREE.Mesh(xBarGeom, redMaterial);
+        xCrossRight.rotation.set(0,0,-Math.PI/4);
+        xCrossLeft.position.set(x+offsetX, y+offsetY, z);
+        xCrossRight.position.set(x+offsetX, y+offsetY, z);
+        scene.add(xCrossLeft);
+        scene.add(xCrossRight);
+      } else if (val == -1) {
+        // make an o here
+        var circle = new THREE.Mesh(oGeom, greenMaterial);
+        circle.position.set(x+offsetX, y+offsetY, z);
+        scene.add(circle); 
+      }
+    }
+  }
+
+// now add the subturns
+  if (turnNumber < 3){
+  var nextTurn = makeNextTurn(configuration, isXTurn);
+  var i = 0;
+   for (i = 0; i <  nextTurn.length; ++ i) {
+      makeGrid(nextTurn[i],turnNumber+1);
+     } 
+   }else  {
+  }
+}
+
+function copyConfiguration(configuration){
+  var result = [
+    [0,0,0,],
+    [0,0,0,],
+    [0,0,0,],
+  ];
+
+  for (var iy = 0; iy < 3; ++ iy){
+    for (var ix = 0; ix < 3; ++ ix){
+          result[iy][ix] = configuration[iy][ix];
+    }
+  }
+  return result;
+}
+function makeNextTurn(configuration, isXTurn){
+  var nextTurn = [];
+  var ix, iy;
+  for (iy = 0; iy < 3; ++iy) {
+    for (ix = 0; ix < 3; ++ ix) {
+      var here = configuration[iy][ix];
+      if (here == 0){
+        var newBoard = copyConfiguration(configuration);
+        newBoard[iy][ix] = isXTurn ? 1 : -1;
+        nextTurn.push(newBoard);
+      }
+    }
+  }
+  return nextTurn;  
+}
+
+//make actual scene
+var endConfiguration= [
+     [-1,1,-1],
+     [1,-1,1],
+     [-1,-1,0],
+ ];
+
+var baseConfiguration = [
+  [ 0,0,0],
+  [ 0,0,0],
+  [ 0,0,0],
+];
+
+makeGrid(baseConfiguration, 0);
+
+// create a lighting
+
+var pointLight =
+  new THREE.PointLight(0xFFFFFF);
+
+pointLight.position.x = 10;
+pointLight.position.y = 50;
+pointLight.position.z = 130;
+scene.add(pointLight);
+scene.add(new THREE.AmbientLight(0x8a8b8c));
+
+
+function render() {
+  renderer.render(scene, camera)
+  controls.update(clock.getDelta());
+  requestAnimationFrame(render);
+}
+
+render();
+
+
+});
+
+</script>
+</head>
+<body>
+<div id="container"/>
+</body>
+</html>
