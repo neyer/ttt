@@ -9,13 +9,12 @@
 $(document).ready(function(){
 // set the scene size
 var WIDTH = 1280,
-    HEIGHT = 1024;
-
-// set some camera attributes
-var VIEW_ANGLE = 45,
+    HEIGHT = 1024,
+  VIEW_ANGLE = 45,
   ASPECT = WIDTH / HEIGHT,
   NEAR = 0.1,
-  FAR = 100000;
+  FAR = 100000,
+  numTurns = 2;
 
 // get the DOM element to attach to
 // - assume we've got jQuery to hand
@@ -31,13 +30,10 @@ var camera =
     NEAR,
     FAR);
 
+//create a scene and controls
 var scene = new THREE.Scene();
-
-// add the camera to the scene
 scene.add(camera);
-
 var controls = new THREE.FlyControls(camera);
-
 controls.movementSpeed = 1000;
 controls.domElement = $container[0];
 controls.rollSpeed = Math.PI/16;
@@ -50,47 +46,20 @@ var clock = new THREE.Clock();
 
 // start the renderer
 renderer.setSize(WIDTH, HEIGHT);
-
-// attach the render-supplied DOM element
 $container.append(renderer.domElement);
 
-// set up the sphere vars
-// create a new mesh with
-// sphere geometry - we will cover
-// the sphereMaterial next!
 
-// add the sphere to the scene
- var height = 100;
- var width = 2;
- var spacePerTurn = height*1.2; 
+// configuration stuff for board objects
+var height = 100;
+var width = 2;
+var spacePerTurn = height*1.2; 
   
 var barGeom = new THREE.CylinderGeometry( width, width, height, 40, 5 );
 var xBarGeom = new THREE.CylinderGeometry( width, width, height*0.3, 40, 5 );
 var oGeom = new THREE.TorusGeometry(height*0.1, width, 8, 10);
 
-
-var xOffsets = [
-  [ [-5,5], [0,4],[5,3], ],
-  [ [-5,2], [0,0],[5,1], ],
-  [ [-5,-1], [0,-2],[5,-3], ],
-];
-
-var oOffsets = [
-  [ [-1,3], [0,4],[1,5], ],
-  [ [-1,1], [0,0],[1,2], ],
-  [ [-1,-3], [0,-2],[1,-1], ],
-]
-function getOffsetWeight(x,y, piece){
-  if (piece == 1)
-    return xOffsets[y][x];
-  else if(piece == -1)
-    return oOffsets[y][x];
-  else
-    return 0;
-}
-
+// how many configurations can be reached each turn? comes from some math
 var configsPerTurn = [1, 9, 72, 252, 1260, 1680, 1260, 630, 630 ];
-
 var offsetRowsMap = {};
 var layersMap = {};
 function makeOffsetForConfig(config) {
@@ -105,20 +74,22 @@ function makeOffsetForConfig(config) {
     }
   }
 
-  var dz  = -spacePerTurn*numPieces;
+  var squareSize = Math.sqrt(configsPerTurn[numPieces]);
+  var dz  = -spacePerTurn*squareSize;
+  squareSize = Math.floor(squareSize);
   // first, get the rows map for this z axis
   var thisLayer = layersMap[numPieces];
   if (typeof thisLayer === 'undefined') {
     thisLayer = { row : 0, column : 0};
     layersMap[numPieces] = thisLayer;
   }
-   if(++thisLayer.column > Math.sqrt(configsPerTurn[numPieces])){
-      ++thisLayer.row;
-       thisLayer.column = 0;
-   }
    dy = thisLayer.row*spacePerTurn;
    var dx = thisLayer.column*spacePerTurn;
 
+   if(++thisLayer.column >= squareSize) {
+      ++thisLayer.row;
+       thisLayer.column = 0;
+   }
   return [ dx, dy, dz];
 }
 
@@ -153,7 +124,7 @@ var topBar = new THREE.Mesh(barGeom, whiteMaterial);
 var bottomBar = new THREE.Mesh(barGeom, whiteMaterial);
   bottomBar.rotation.set(0,0,-Math.PI/2);
   bottomBar.position.set(x,y-offset,z);
-scene.add(bottomBar);
+  scene.add(bottomBar);
   // now add the elements
   for (var iy = 0; iy < 3; ++ iy) {
     for (var ix = 0; ix < 3; ++ ix){
@@ -181,7 +152,7 @@ scene.add(bottomBar);
   }
 
 // now add the subturns
-  if (turnNumber < 3){
+  if (turnNumber < numTurns){
   var nextTurn = makeNextTurn(configuration, isXTurn);
   var i = 0;
    for (i = 0; i <  nextTurn.length; ++ i) {
@@ -205,8 +176,35 @@ function copyConfiguration(configuration){
   }
   return result;
 }
+
+function makeConfigurationString(c){
+  return [c[0].join(),c[1].join(),c[2].join()].join();
+}
+
+var configurationCache = {};
+var moveCache = {};
+function isNewConfiguration(configuration){
+  var s = makeConfigurationString(configuration);
+  if (typeof configurationCache[s] === 'undefined'){
+    configurationCache[s] = true;
+    return true;
+  }
+  return false;
+}
+
+function isNewMove(configA, configB){
+  var s1 = makeConfigurationString(configA),
+      s2 = makeConfigurationString(configB);
+  var s= s1+";"+s3;
+  if (typeof moveCache[s] === 'undefined') {
+    moveCache[s] = true;
+    return true;
+  }
+  return false;
+}
+
 function makeNextTurn(configuration, isXTurn){
-  var nextTurn = [];
+  var nextTurn = { 'configs' : [], 'moves' : [] };
   var ix, iy;
   for (iy = 0; iy < 3; ++iy) {
     for (ix = 0; ix < 3; ++ ix) {
@@ -214,7 +212,10 @@ function makeNextTurn(configuration, isXTurn){
       if (here == 0){
         var newBoard = copyConfiguration(configuration);
         newBoard[iy][ix] = isXTurn ? 1 : -1;
-        nextTurn.push(newBoard);
+        if (isNewConfiguration(newBoard))
+          nextTurn.configs.push(newBoard);
+        if (isNewMove(configuration, newBoard) 
+          nextTurn.moves.push();
       }
     }
   }
