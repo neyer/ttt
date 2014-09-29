@@ -14,7 +14,7 @@ var WIDTH = 1280,
   ASPECT = WIDTH / HEIGHT,
   NEAR = 0.1,
   FAR = 100000,
-  numTurns = 2;
+  numTurns = 3;
 
 // get the DOM element to attach to
 // - assume we've got jQuery to hand
@@ -74,7 +74,6 @@ var Configuration = function (board) {
  computeOffset: function() {
   var config = board;
   var numPieces  = 0;
-  var dy = 0;
   for (var iy = 0; iy < 3; ++ iy) {
     for (var ix = 0; ix < 3; ++ ix) {
         var piece = config[iy][ix];
@@ -87,21 +86,33 @@ var Configuration = function (board) {
   this.isXTurn = numPieces %  2 == 0;
   var squareSize = Math.sqrt(configsPerTurn[numPieces]);
   var dz  = -spacePerTurn*squareSize;
+  var dx = 0, dy = 0;
   squareSize = Math.floor(squareSize);
   // first, get the rows map for this z axis
   var thisLayer = layersMap[numPieces];
   if (typeof thisLayer === 'undefined') {
-    thisLayer = { row : 0, column : 0};
+    thisLayer = { configs: {}, row: 0, column : 0};
     layersMap[numPieces] = thisLayer;
   }
+  // see if there's already a position for this config
+  var thisConfigPos = thisLayer.configs[this.signature];
+  if (typeof thisConfigPos === 'undefined') {
    dy = thisLayer.row*spacePerTurn;
-   var dx = thisLayer.column*spacePerTurn;
+   dx = thisLayer.column*spacePerTurn;
+
+    thisConfigPos = { x : dx, y : dy };
+    thisLayer.configs[this.signature] = thisConfigPos;
 
    if(++thisLayer.column >= squareSize) {
       ++thisLayer.row;
        thisLayer.column = 0;
    }
-  return [ dx, dy, dz];
+  } else {
+    dx = thisConfigPos.x;
+    dx = thisConfigPos.y;
+ } 
+
+     return [ dx, dy, dz];
  },
 
  makeGeometry : function (){
@@ -183,8 +194,8 @@ var Configuration = function (board) {
   }
  };
 
- c.offset = c.computeOffset();
  c.signature = c.makeString();
+ c.offset = c.computeOffset();
  c.offsetVec = new THREE.Vector3(c.offset[0], c.offset[1], c.offset[2]);
  return c;
 } // end Configuration function 
@@ -205,7 +216,7 @@ function Move(oldConfig, newConfig) {
       }
       var object = new THREE.Object3D();
       var points = [ pathInterpolate(0),
-                     pathInterpolate(1.0)];  
+                     pathInterpolate(1.2)];  
       var arrow = new THREE.TubeGeometry(new THREE.SplineCurve3(points), 4, width, 8, true);
       var mesh = new THREE.Mesh(arrow, oldConfig.isXTurn ? redMaterial : greenMaterial);
       scene.add(mesh);
