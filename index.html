@@ -84,6 +84,7 @@ var Configuration = function (board) {
     }
   }
   this.turnNumber = numPieces;
+  this.isXTurn = numPieces %  2 == 0;
   var squareSize = Math.sqrt(configsPerTurn[numPieces]);
   var dz  = -spacePerTurn*squareSize;
   squareSize = Math.floor(squareSize);
@@ -105,31 +106,28 @@ var Configuration = function (board) {
 
  makeGeometry : function (){
   var offset = height/6; // two offset should be one third of the space here
-  var isXTurn = this.turnNumber % 2 == 0;
-  var gridOffset = this.computeOffset();
-  var x = gridOffset[0]; 
-  var y = gridOffset[1];
-  var z = gridOffset[2];
+  var rootObj = new THREE.Object3D();
+  rootObj.position.copy(this.offsetVec);
+
 
   // put the bars in here
   var leftBar = new THREE.Mesh(barGeom, whiteMaterial);
-      leftBar.position.set( x - offset, y, z );
-  scene.add( leftBar);
+      leftBar.position.set(- offset, 0, 0);
+  rootObj.add( leftBar);
 
   var rightBar = new THREE.Mesh(barGeom, whiteMaterial);
-  rightBar.position.set(x + offset, y, z);
-
-  scene.add(rightBar)
+  rightBar.position.set(offset, 0, 0);
+  rootObj.add(rightBar)
 
    var topBar = new THREE.Mesh(barGeom, whiteMaterial);
    topBar.rotation.set(0,0,Math.PI/2);
-   topBar.position.set(x,y+offset,z);
-   scene.add(topBar);
+   topBar.position.set(0,offset,0);
+   rootObj.add(topBar);
 
   var bottomBar = new THREE.Mesh(barGeom, whiteMaterial);
-  bottomBar.rotation.set(0,0,-Math.PI/2);
-  bottomBar.position.set(x,y-offset,z);
-  scene.add(bottomBar);
+  bottomBar.rotation.set(0,0,Math.PI/2);
+  bottomBar.position.set(0,-offset,0);
+  rootObj.add(bottomBar);
   // now add the elements
   for (var iy = 0; iy < 3; ++ iy) {
     for (var ix = 0; ix < 3; ++ ix){
@@ -143,23 +141,24 @@ var Configuration = function (board) {
         xCrossLeft.rotation.set(0,0,Math.PI/4)
         var xCrossRight = new THREE.Mesh(xBarGeom, redMaterial);
         xCrossRight.rotation.set(0,0,-Math.PI/4);
-        xCrossLeft.position.set(x+offsetX, y+offsetY, z);
-        xCrossRight.position.set(x+offsetX, y+offsetY, z);
-        scene.add(xCrossLeft);
-        scene.add(xCrossRight);
+        xCrossLeft.position.set(offsetX, offsetY, 0);
+        xCrossRight.position.set(offsetX, offsetY, 0);
+        rootObj.add(xCrossLeft);
+        rootObj.add(xCrossRight);
       } else if (val == -1) {
         // make an o here
         var circle = new THREE.Mesh(oGeom, greenMaterial);
-        circle.position.set(x+offsetX, y+offsetY, z);
-        scene.add(circle); 
+        circle.position.set(offsetX,offsetY, 0);
+        rootObj.add(circle); 
       }
     }
   }
+  scene.add(rootObj);
  },
  makeSubturns : function (){
   // now add the subturns
   if (this.turnNumber < numTurns){
-  var nextTurn = makeNextTurn(configuration, isXTurn);
+  var nextTurn = makeNextTurn(configuration);
   var i = 0;
    for (i = 0; i <  nextTurn.configs.length; ++ i) {
        Configuration(nextTurn[i]);
@@ -185,8 +184,8 @@ var Configuration = function (board) {
  };
 
  c.offset = c.computeOffset();
- c.offsetVec = new THREE.Vector3(c.offset[0], c.offset[1], c.offset[2]);
  c.signature = c.makeString();
+ c.offsetVec = new THREE.Vector3(c.offset[0], c.offset[1], c.offset[2]);
  return c;
 } // end Configuration function 
 
@@ -206,11 +205,9 @@ function Move(oldConfig, newConfig) {
       }
       var object = new THREE.Object3D();
       var points = [ pathInterpolate(0),
-                     pathInterpolate(0.33),   
-                     pathInterpolate(0.66),   
                      pathInterpolate(1.0)];  
       var arrow = new THREE.TubeGeometry(new THREE.SplineCurve3(points), 4, width, 8, true);
-      var mesh = new THREE.Mesh(arrow, redMaterial);
+      var mesh = new THREE.Mesh(arrow, oldConfig.isXTurn ? redMaterial : greenMaterial);
       scene.add(mesh);
     },
   };
@@ -237,21 +234,20 @@ function isNewMove(configA, configB){
   return false;
 }
 
-function makeNextTurn(configuration, isXTurn){
-  var nextTurn = { 'configs' : [], 'moves' : [] };
+function makeNextTurn(configuration){
+  var nextTurn = { 'configs' : [], 'moves' : [], 'turnCount' : configuration.turnNumber + 1 };
   var ix, iy;
   for (iy = 0; iy < 3; ++iy) {
     for (ix = 0; ix < 3; ++ ix) {
       var here = configuration.board[iy][ix];
       if (here == 0){
         var newBoard = configuration.copyBoard();
-        newBoard[iy][ix] = isXTurn ? 1 : -1;
+        newBoard[iy][ix] = configuration.isXTurn ? 1 : -1;
         var newConfig = Configuration(newBoard);
         if (isNewConfiguration(newConfig)){
           nextTurn.configs.push(newConfig);
         }
         if (isNewMove(configuration, newConfig))
-          console.log(' some moves');
           nextTurn.moves.push(Move(configuration, newConfig));
       }
     }
@@ -263,11 +259,17 @@ function processTurn(newTurn){
   var i = 0;
   for (i = 0; i < newTurn.configs.length; ++i){
     newTurn.configs[i].makeGeometry();
+    if (newTurn.turnCount < numTurns) {
+        var next = makeNextTurn(newTurn.configs[i]);
+        processTurn(next);
+    }
   } 
 
   for (i = 0; i < newTurn.moves.length; ++i) {
       newTurn.moves[i].makeGeometry();
   }
+
+   
 }
 
 //make actual scene
