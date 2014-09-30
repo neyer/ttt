@@ -12,7 +12,7 @@ var ttt = {
   ViewAngle : 45,
   NearPlane : 0.1,
   FarPlane : 100000,
-  NumTurns : 4,
+  NumTurns : 2,
 };
 (window.onpopstate = function () {
     var match,
@@ -125,6 +125,18 @@ var Configuration = function (board) {
   var offset = height/6; // two offset should be one third of the space here
   var rootObj = new THREE.Object3D();
   rootObj.position.copy(this.offsetVec);
+  var imageFile = 'images/'+this.signature+'.png';
+  var textureMap = THREE.ImageUtils.loadTexture(imageFile);
+  var material =  new THREE.MeshBasicMaterial({
+   color:0xffffff,
+   overdraw: true,
+   transparent : true,
+   map:textureMap});
+
+  var plane = new THREE.Mesh(new THREE.PlaneGeometry(100,100,1,1), material)
+  rootObj.add(plane);
+  scene.add(rootObj);
+  return;
 
 
   // put the bars in here
@@ -317,7 +329,6 @@ pointLight.position.y = 50;
 pointLight.position.z = 130;
 scene.add(pointLight);
 scene.add(new THREE.AmbientLight(0x8a8b8c));
-
 
 function render() {
   renderer.render(scene, camera)
