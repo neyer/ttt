@@ -242,11 +242,17 @@ function Move(oldConfig, newConfig) {
   };
 }
 
-var configurationCache = {};
+
+//stores a 
+var configsByTurn = {};
+// prepare the configuration cache
+for (var t = 0; t < 10; ++t {
+  configsByTurn[t] = {};
+}
 var moveCache = {};
 function isNewConfiguration(c){
-  if (typeof configurationCache[c.signature] === 'undefined'){
-    configurationCache[c.signature] = true;
+  if (typeof configsByTurn[c.turnNumber][c.signature] === 'undefined'){
+    configsByTurn[c.turnNumber][c.signature] = c;
     return true;
   }
   return false;
@@ -284,6 +290,9 @@ function makeNextTurn(configuration){
   return nextTurn;  
 }
 
+function changeOffsets(newTurn) {
+}
+
 function processTurn(newTurn){
   var i = 0;
   for (i = 0; i < newTurn.configs.length; ++i){
@@ -297,8 +306,6 @@ function processTurn(newTurn){
   for (i = 0; i < newTurn.moves.length; ++i) {
       newTurn.moves[i].makeGeometry();
   }
-
-   
 }
 
 //make actual scene
