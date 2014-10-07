@@ -23,7 +23,6 @@ var ttt = {
 
     while (match = search.exec(query)){
        ttt[decode(match[1])] = decode(match[2]);
-      console.log('adding param '+match[1]+'='+match[2]);
     }
 })();
 $(document).ready(function(){
@@ -75,43 +74,51 @@ var Configuration = function (board) {
  c.board = board;
  c.turnNumber = 0;
  c.piecesByColumn = [0,0,0];
+ c.xPiecesByColumn = [0,0,0];
  c.piecesByRow = [0,0,0];
- c.computeOffset = function() {
-  // also computes some other characteristics of this board
-  var config = board;
-  var numPieces  = 0;
-  for (var iy = 0; iy < 3; ++ iy) {
-    for (var ix = 0; ix < 3; ++ ix) {
-        var piece = config[iy][ix];
-        if (piece != 0) {
-            ++ numPieces;
-            ++c.piecesByRow[iy];
-            ++c.piecesByColumn[ix];
-        }
+ c.xPiecesByRow = [0,0,0];
+ c.computeBasic = function () {
+    // also computes some other characteristics of this board
+    var config = board;
+    var numPieces  = 0;
+    for (var iy = 0; iy < 3; ++ iy) {
+      for (var ix = 0; ix < 3; ++ ix) {
+          var piece = config[iy][ix];
+          if (piece != 0) {
+              ++ numPieces;
+              ++c.piecesByRow[iy];
+              ++c.piecesByColumn[ix];
+          }
+          if (piece == 1) {
+            ++c.xPiecesByRow[iy];
+            ++c.xPiecesByColumn[ix];
+          }
+      }
     }
-  }
-  this.turnNumber = numPieces;
-  this.isXTurn = numPieces %  2 == 0;
-  var squareSize = Math.sqrt(configsPerTurn[numPieces]);
+    c.turnNumber = numPieces;
+    c.isXTurn = numPieces %  2 == 0;
+  };
+
+  c.computeOffset = function(){
+  var squareSize = Math.sqrt(configsPerTurn[c.turnNumber]);
   var dz  = -spacePerTurn*squareSize;
   var dx = 0, dy = 0;
   squareSize = Math.floor(squareSize);
   // first, get the rows map for this z axis
-  var thisLayer = layersMap[numPieces];
+  var thisLayer = layersMap[c.turnNumber];
   if (typeof thisLayer === 'undefined') {
     thisLayer = { configs: {}, row: 0, column : 0};
-    layersMap[numPieces] = thisLayer;
+    layersMap[c.turnNumber] = thisLayer;
   }
   // see if there's already a position for this config
-  var thisConfigPos = thisLayer.configs[this.signature];
+  var thisConfigPos = thisLayer.configs[c.signature];
   if (typeof thisConfigPos === 'undefined') {
-
    var layerSizeOffset = squareSize*spacePerTurn*0.5;
-   dy = thisLayer.row*spacePerTurn - layerSizeOffset;
+   dy = - thisLayer.row*spacePerTurn + layerSizeOffset;
    dx = thisLayer.column*spacePerTurn - layerSizeOffset;
 
     thisConfigPos = { x : dx, y : dy };
-    thisLayer.configs[this.signature] = thisConfigPos;
+    thisLayer.configs[c.signature] = thisConfigPos;
 
    //now advance where the next config in this row should go
    if(++thisLayer.column >= squareSize) {
@@ -119,18 +126,22 @@ var Configuration = function (board) {
        thisLayer.column = 0;
    }
   } else {
+
+    console.log('got an existing config for turn' +c.turnNumber);
     dx = thisConfigPos.x;
     dy = thisConfigPos.y;
  } 
 
-     return [ dx, dy, dz];
+   c.offsetVec = new THREE.Vector3(dx, dy, dz);
+   return [ dx, dy, dz];
  };
 
- c.makeGeometry = function (){
+  c.makeGeometry = function (){
+  c.computeOffset();
   var offset = height/6; // two offset should be one third of the space here
   var rootObj = new THREE.Object3D();
-  rootObj.position.copy(this.offsetVec);
-  var imageFile = 'images/'+this.signature+'.png';
+  rootObj.position.copy(c.offsetVec);
+  var imageFile = 'images/'+c.signature+'.png';
   var textureMap = THREE.ImageUtils.loadTexture(imageFile);
   var material =  new THREE.MeshBasicMaterial({
    color:0xffffff,
@@ -164,7 +175,7 @@ var Configuration = function (board) {
   // now add the elements
   for (var iy = 0; iy < 3; ++ iy) {
     for (var ix = 0; ix < 3; ++ ix){
-      var val = this.board[iy][ix];
+      var val = c.board[iy][ix];
 
       var offsetX = (ix - 1)*height*0.333;
       var offsetY = (iy - 1)*height*0.333;
@@ -190,7 +201,7 @@ var Configuration = function (board) {
  };
  c.makeSubturns = function (){
   // now add the subturns
-  if (this.turnNumber < ttt.NumTurns){
+  if (c.turnNumber < ttt.NumTurns){
   var nextTurn = makeNextTurn(configuration);
   var i = 0;
    for (i = 0; i <  nextTurn.configs.length; ++ i) {
@@ -205,7 +216,7 @@ var Configuration = function (board) {
       [0,0,0,],
     ]; for (var iy = 0; iy < 3; ++ iy){
       for (var ix = 0; ix < 3; ++ ix){
-            result[iy][ix] = this.board[iy][ix];
+            result[iy][ix] = c.board[iy][ix];
       }
     }
     return result;
@@ -215,12 +226,49 @@ var Configuration = function (board) {
     return [c.board[0].join(),c.board[1].join(),c.board[2].join()].join();
  };
 
+
  c.signature = c.makeString();
- c.offset = c.computeOffset();
- c.offsetVec = new THREE.Vector3(c.offset[0], c.offset[1], c.offset[2]);
+ c.computeBasic();
+ //c.computeOffset();
  return c;
 } // end Configuration function 
 
+
+function compareConfigsVertical(configA, configB) {
+  var iy; 
+  for (iy = 0; iy < 3; ++iy) {
+    var delta  = (configA.piecesByRow[iy] - configB.piecesByRow[iy]);
+    if (delta > 0)
+      return 1;
+    if (delta < 0)
+      return -1;
+  }
+  // since they both have the same number of pieces in each vertical
+  // look by x pieces
+  for (iy = 0; iy < 3; ++iy){
+    var delta = configA.xPiecesByRow[iy] - configB.xPiecesByRow[iy];
+    if (delta > 0){
+      return 1;
+    }
+    if (delta < 0)
+     return -1;
+  }
+  // if they both have the exact same number of x piecs in each row
+  // see who has the first x?
+  var ix = 0;
+  for (iy = 0; iy < 3; ++ iy) {
+    for (ix = 0; ix < 3; ++ix) {
+      var pA = configA.board[iy][ix];
+      var pB = configB.board[iy][ix];
+      if (pA == pB)
+        continue;
+      if (pA == 1 || pB == 0)
+        return 1;
+      else 
+        return -1;
+    }
+  }
+}
 function Move(oldConfig, newConfig) {
   return {
     old : oldConfig,
@@ -308,15 +356,24 @@ function processTurn(newTurn){
   var i = 0;
   for (i = 0; i < newTurn.configs.length; ++i){
     newTurn.configs[i].makeGeometry();
-    if (newTurn.turnCount < ttt.NumTurns) {
-        var next = makeNextTurn(newTurn.configs[i]);
-        processTurn(next);
-    }
   } 
 
-  for (i = 0; i < newTurn.moves.length; ++i) {
+  newTurn.configs.sort(compareConfigsVertical);
+  console.log('finished all moves for turn' +newTurn.turnCount);
+  if (newTurn.turnCount < ttt.NumTurns) {
+    var nextTurns = [];
+    for (i = 0; i < newTurn.configs.length; ++i) {
+      nextTurns.push(makeNextTurn(newTurn.configs[i]));
+    }
+    // now process the moves for this next turn
+    for (i = 0; i < newTurn.moves.length; ++i) {
       newTurn.moves[i].makeGeometry();
+    }
+    for (i = 0; i < nextTurns.length; ++ i) {
+      processTurn(nextTurns[i]);
+    }
   }
+
 }
 
 //make actual scene
