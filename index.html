@@ -12,7 +12,7 @@ var ttt = {
   ViewAngle : 45,
   NearPlane : 0.1,
   FarPlane : 100000,
-  NumTurns : 2,
+  NumTurns : 3,
 };
 (window.onpopstate = function () {
     var match,
@@ -71,10 +71,13 @@ var configsPerTurn = [1, 9, 72, 252, 756, 1260, 1680, 1260, 630, 630 ];
 
 var layersMap = {};
 var Configuration = function (board) {
- var c =  {
- board : board,
- turnNumber : 0,
- computeOffset: function() {
+ var c =  {};
+ c.board = board;
+ c.turnNumber = 0;
+ c.piecesByColumn = [0,0,0];
+ c.piecesByRow = [0,0,0];
+ c.computeOffset = function() {
+  // also computes some other characteristics of this board
   var config = board;
   var numPieces  = 0;
   for (var iy = 0; iy < 3; ++ iy) {
@@ -82,6 +85,8 @@ var Configuration = function (board) {
         var piece = config[iy][ix];
         if (piece != 0) {
             ++ numPieces;
+            ++c.piecesByRow[iy];
+            ++c.piecesByColumn[ix];
         }
     }
   }
@@ -119,9 +124,9 @@ var Configuration = function (board) {
  } 
 
      return [ dx, dy, dz];
- },
+ };
 
- makeGeometry : function (){
+ c.makeGeometry = function (){
   var offset = height/6; // two offset should be one third of the space here
   var rootObj = new THREE.Object3D();
   rootObj.position.copy(this.offsetVec);
@@ -137,7 +142,6 @@ var Configuration = function (board) {
   rootObj.add(plane);
   scene.add(rootObj);
   return;
-
 
   // put the bars in here
   var leftBar = new THREE.Mesh(barGeom, whiteMaterial);
@@ -183,8 +187,8 @@ var Configuration = function (board) {
     }
   }
   scene.add(rootObj);
- },
- makeSubturns : function (){
+ };
+ c.makeSubturns = function (){
   // now add the subturns
   if (this.turnNumber < ttt.NumTurns){
   var nextTurn = makeNextTurn(configuration);
@@ -193,8 +197,8 @@ var Configuration = function (board) {
        Configuration(nextTurn[i]);
      } 
    }
-  },
- copyBoard: function(){
+  };
+ c.copyBoard = function(){
     var result = [
       [0,0,0,],
       [0,0,0,],
@@ -205,11 +209,10 @@ var Configuration = function (board) {
       }
     }
     return result;
-  },
+  };
 
-  makeString: function(){
+ c.makeString = function(){
     return [c.board[0].join(),c.board[1].join(),c.board[2].join()].join();
-  }
  };
 
  c.signature = c.makeString();
@@ -242,11 +245,15 @@ function Move(oldConfig, newConfig) {
   };
 }
 
-
+/*
+############################################################
+Caching
+############################################################
+*/
 //stores a 
 var configsByTurn = {};
 // prepare the configuration cache
-for (var t = 0; t < 10; ++t {
+for (var t = 0; t < 10; ++t) {
   configsByTurn[t] = {};
 }
 var moveCache = {};
@@ -268,6 +275,10 @@ function isNewMove(configA, configB){
   }
   return false;
 }
+
+/*############################################################
+Turn advancing
+############################################################*/
 
 function makeNextTurn(configuration){
   var nextTurn = { 'configs' : [], 'moves' : [], 'turnCount' : configuration.turnNumber + 1 };
