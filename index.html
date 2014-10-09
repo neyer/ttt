@@ -12,7 +12,7 @@ var ttt = {
   ViewAngle : 45,
   NearPlane : 0.1,
   FarPlane : 100000,
-  NumTurns : 2,
+  NumTurns : 3,
 };
 (window.onpopstate = function () {
     var match,
@@ -119,8 +119,8 @@ var Configuration = function (board) {
   var thisConfigPos = thisLayer.configs[c.signature];
   if (typeof thisConfigPos === 'undefined') {
    var layerSizeOffset = squareSize*spacePerTurn*0.5;
-   dy = - thisLayer.row*spacePerTurn + layerSizeOffset;
    dx = thisLayer.column*spacePerTurn - layerSizeOffset;
+   dy = - thisLayer.row*spacePerTurn + layerSizeOffset;
 
     thisConfigPos = { x : dx, y : dy };
     thisLayer.configs[c.signature] = thisConfigPos;
@@ -242,19 +242,19 @@ function compareConfigsVertical(configA, configB) {
   for (iy = 0; iy < 3; ++iy) {
     var delta  = (configA.piecesByRow[iy] - configB.piecesByRow[iy]);
     if (delta > 0)
-      return 1;
-    if (delta < 0)
       return -1;
+    if (delta < 0)
+      return 1;
   }
   // since they both have the same number of pieces in each vertical
   // look by x pieces
   for (iy = 0; iy < 3; ++iy){
     var delta = configA.xPiecesByRow[iy] - configB.xPiecesByRow[iy];
     if (delta > 0){
-      return 1;
+      return -1;
     }
     if (delta < 0)
-     return -1;
+     return 1;
   }
   // if they both have the exact same number of x piecs in each row
   // see who has the first x?
@@ -266,9 +266,9 @@ function compareConfigsVertical(configA, configB) {
       if (pA == pB)
         continue;
       if (pA == 1 || pB == 0)
-        return 1;
-      else 
         return -1;
+      else 
+        return 1;
     }
   }
 }
@@ -331,8 +331,8 @@ function isNewMove(configA, configB){
 Turn advancing
 ############################################################*/
 
-function makeNextTurn(configuration){
-  var nextTurn = { 'configs' : [], 'moves' : [], 'turnCount' : configuration.turnNumber + 1 };
+function updateNextTurn(configuration){
+  var nextTurn = getTurn(configuration.turnNumber + 1);
   var ix, iy;
   for (iy = 0; iy < 3; ++iy) {
     for (ix = 0; ix < 3; ++ ix) {
@@ -355,47 +355,52 @@ function makeNextTurn(configuration){
 function changeOffsets(newTurn) {
 }
 
-function processTurn(newTurn){
+function renderTurn(turn){
+  //first render the turn
   var i = 0;
-  for (i = 0; i < newTurn.configs.length; ++i){
-    newTurn.configs[i].makeGeometry();
+  turn.configs.sort(compareConfigsVertical);
+  for (i = 0; i < turn.configs.length; ++i){
+    turn.configs[i].makeGeometry();
   } 
-
-  newTurn.configs.sort(compareConfigsVertical);
-  console.log('finished all moves for turn' +newTurn.turnCount);
-  if (newTurn.turnCount < ttt.NumTurns) {
-    var nextTurns = [];
-    for (i = 0; i < newTurn.configs.length; ++i) {
-      nextTurns.push(makeNextTurn(newTurn.configs[i]));
-    }
-    // now process the moves for this next turn
-    for (i = 0; i < newTurn.moves.length; ++i) {
-      newTurn.moves[i].makeGeometry();
-    }
-    for (i = 0; i < nextTurns.length; ++ i) {
-      processTurn(nextTurns[i]);
-    }
+  for (i = 0; i < turn.moves.length; ++i) {
+     turn.moves[i].makeGeometry();
   }
 
 }
-
-//make actual scene
-var endConfiguration= [
-     [-1,1,-1],
-     [1,-1,1],
-     [-1,-1,0],
- ];
-
+function computeNextTurn(turn){
+  if (turn.turnCount < ttt.NumTurns) {
+    // now process the moves for this next turn
+    for (i = 0; i < turn.configs.length; ++i){
+      updateNextTurn(turn.configs[i]);
+    }
+    computeNextTurn(getTurn(turn.turnCount+1));
+    // draw the moves for this turn and the next one
+  }
+}
 var baseConfiguration = [
   [ 0,0,0],
   [ 0,0,0],
   [ 0,0,0],
 ];
 
+var turns = {};
+
+function getTurn(turnNumber){
+  var turn = turns[turnNumber];
+  if (typeof turn === 'undefined') {
+    turn = { configs : [], moves : [], turnCount : turnNumber};
+    turns[turnNumber] = turn
+  }
+  return turn;
+}
+
 ttt.baseConfig  = Configuration(baseConfiguration);
-ttt.baseConfig.makeGeometry();
-ttt.turn = makeNextTurn(ttt.baseConfig, true);
-processTurn(ttt.turn);
+ttt.baseTurn = getTurn(0);
+ttt.baseTurn.configs.push(ttt.baseConfig);
+computeNextTurn(ttt.baseTurn);
+for (var i = 0; i < ttt.NumTurns; ++i){
+ renderTurn(turns[i]); 
+}
 
 // create a lighting
 
