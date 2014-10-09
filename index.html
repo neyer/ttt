@@ -12,7 +12,7 @@ var ttt = {
   ViewAngle : 45,
   NearPlane : 0.1,
   FarPlane : 100000,
-  NumTurns : 3,
+  NumTurns : 2,
 };
 (window.onpopstate = function () {
     var match,
@@ -64,9 +64,14 @@ var whiteMaterial = new THREE.MeshLambertMaterial({color:0xffffff});
 var redMaterial = new THREE.MeshLambertMaterial({color:0xcc0000});
 var greenMaterial = new THREE.MeshLambertMaterial({color:0x00cc00});
 
-
 // how many configurations can be reached each turn? comes from some math
 var configsPerTurn = [1, 9, 72, 252, 756, 1260, 1680, 1260, 630, 630 ];
+var squareSizePerTurn = [];
+
+for (var i = 0; i < configsPerTurn.length; ++i){
+  squareSizePerTurn[i] = Math.sqrt(configsPerTurn[i]);
+}
+
 
 var layersMap = {};
 var Configuration = function (board) {
@@ -100,7 +105,7 @@ var Configuration = function (board) {
   };
 
   c.computeOffset = function(){
-  var squareSize = Math.sqrt(configsPerTurn[c.turnNumber]);
+  var squareSize = squareSizePerTurn[c.turnNumber];
   var dz  = -spacePerTurn*squareSize;
   var dx = 0, dy = 0;
   squareSize = Math.floor(squareSize);
@@ -126,8 +131,6 @@ var Configuration = function (board) {
        thisLayer.column = 0;
    }
   } else {
-
-    console.log('got an existing config for turn' +c.turnNumber);
     dx = thisConfigPos.x;
     dy = thisConfigPos.y;
  } 
